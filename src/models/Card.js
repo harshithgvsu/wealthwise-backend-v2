@@ -30,6 +30,7 @@ const cardSchema = new mongoose.Schema(
     signupBonus: { type: String },
     signupSpend: { type: Number },
     spentTowardBonus: { type: Number, default: 0 },
+    cardType: { type: String, enum: ["credit", "debit"], default: "credit" },
   },
   {
     timestamps: true,

@@ -26,6 +26,8 @@ router.patch("/:id", authenticate, async (req, res) => {
       "riskTolerance",
       "investmentHorizonYears",
       "onboardingComplete",
+      "paychecks",
+      "savingsAccounts",
     ];
 
     const updates = {};

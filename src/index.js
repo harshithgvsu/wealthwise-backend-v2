@@ -46,6 +46,7 @@ app.use("/auth", require("./routes/auth"));
 app.use("/users", require("./routes/users"));
 app.use("/expenses", require("./routes/expenses"));
 app.use("/cards", require("./routes/cards"));
+app.use("/ai", require("./routes/ai"));
 
 // ── Health check
 app.get("/health", (req, res) => res.json({ ok: true }));

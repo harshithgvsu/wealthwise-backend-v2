@@ -50,6 +50,7 @@ router.post("/", async (req, res) => {
         signupBonus: data.signupBonus,
         signupSpend: data.signupSpend,
         spentTowardBonus: data.spentTowardBonus || 0,
+        cardType: data.cardType || "credit",
       },
       { upsert: true, new: true }
     );
@@ -97,6 +98,7 @@ router.post("/bulk", async (req, res) => {
               signupBonus: data.signupBonus,
               signupSpend: data.signupSpend,
               spentTowardBonus: data.spentTowardBonus || 0,
+              cardType: data.cardType || "credit",
             },
           },
           upsert: true,

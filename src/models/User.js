@@ -42,6 +42,26 @@ const userSchema = new mongoose.Schema(
     },
     investmentHorizonYears: { type: Number, default: 20 },
     onboardingComplete: { type: Boolean, default: false },
+    paychecks: {
+      type: [
+        {
+          id: { type: String, required: true },
+          amount: { type: Number, required: true },
+          date: { type: String, required: true },
+        },
+      ],
+      default: [],
+    },
+    savingsAccounts: {
+      type: [
+        {
+          id: { type: String, required: true },
+          name: { type: String, default: "" },
+          amountPerPaycheck: { type: Number, default: 0 },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,
