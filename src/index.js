@@ -9,8 +9,8 @@ const { connectDB } = require("./config/db");
 
 const app = express();
 
-// ── Security headers
-app.use(helmet());
+// ── Security headers (crossOriginResourcePolicy must be cross-origin for Cloudflare Tunnel + GitHub Pages)
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 // ── CORS — only allow your frontend origin(s)
 const allowedOrigins = (process.env.CORS_ORIGIN || "")
@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 
 connectDB().then(() => {
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 WealthWise API running on port ${PORT}`);
   });
 });
