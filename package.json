@@ -1,6 +1,6 @@
 {
   "name": "wealthwise-backend",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "WealthWise API server",
   "main": "src/index.js",
   "scripts": {

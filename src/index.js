@@ -66,7 +66,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 
 connectDB().then(() => {
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, () => {
     console.log(`🚀 WealthWise API running on port ${PORT}`);
   });
 });
