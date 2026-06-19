@@ -1,7 +1,19 @@
 const express = require("express");
 const router = express.Router();
 const Card = require("../models/Card");
+const CardPreset = require("../models/CardPreset");
 const { authenticate } = require("../middleware/auth");
+
+// GET /cards/presets — public, no auth needed
+router.get("/presets", async (req, res) => {
+  try {
+    const presets = await CardPreset.find({}).sort({ issuer: 1, name: 1 });
+    res.json({ success: true, presets: presets.map((p) => p.toClient()) });
+  } catch (err) {
+    console.error("Get presets error:", err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+});
 
 router.use(authenticate);
 
