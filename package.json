@@ -1,6 +1,6 @@
 {
   "name": "wealthwise-backend",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "WealthWise API server",
   "main": "src/index.js",
   "scripts": {
@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -20,7 +21,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.21.0",
-    "mongoose": "^8.4.3"
+    "mongoose": "^8.4.3",
+    "plaid": "^43.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
@@ -30,6 +32,8 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/test/**/*.test.js"]
+    "testMatch": [
+      "**/test/**/*.test.js"
+    ]
   }
 }

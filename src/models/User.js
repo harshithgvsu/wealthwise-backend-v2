@@ -62,6 +62,19 @@ const userSchema = new mongoose.Schema(
       ],
       default: [],
     },
+    plaidItems: {
+      type: [
+        {
+          itemId: { type: String, required: true },
+          accessToken: { type: String, required: true },
+          institutionName: { type: String, default: "" },
+          institutionId: { type: String, default: "" },
+          accountTypes: [{ type: String }],
+          connectedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,

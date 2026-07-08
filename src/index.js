@@ -5,6 +5,7 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
 const { connectDB } = require("./config/db");
 
 const app = express();
@@ -30,6 +31,9 @@ app.use(
   })
 );
 
+// ── Cookie parser (must come before routes)
+app.use(cookieParser());
+
 // ── Body parser
 app.use(express.json({ limit: "1mb" }));
 
@@ -49,6 +53,7 @@ app.use("/users", require("./routes/users"));
 app.use("/expenses", require("./routes/expenses"));
 app.use("/cards", require("./routes/cards"));
 app.use("/ai", require("./routes/ai"));
+app.use("/plaid", require("./routes/plaid"));
 
 // ── Health check
 app.get("/health", (req, res) => res.json({ ok: true }));

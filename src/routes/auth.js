@@ -2,11 +2,12 @@ const express = require("express");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
 const User = require("../models/User");
-const { authenticate, signToken } = require("../middleware/auth");
+const { authenticate, signToken, cookieOptions } = require("../middleware/auth");
 
-// Stricter rate limit for auth endpoints — prevents brute force
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: { success: false, error: "Too many attempts, try again later" },
   standardHeaders: true,
@@ -30,19 +31,13 @@ router.post("/signup", authLimiter, async (req, res) => {
       return res.status(409).json({ success: false, error: "Email already registered. Please log in." });
     }
 
-    const user = await User.create({
-      email,
-      name,
-      passwordHash: password, // pre-save hook hashes this
-    });
-
+    const user = await User.create({ email, name, passwordHash: password });
     const token = signToken(user._id);
 
-    res.status(201).json({
-      success: true,
-      token,
-      user: user.toProfile(),
-    });
+    res
+      .cookie("ww_token", token, cookieOptions(NINETY_DAYS_MS))
+      .status(201)
+      .json({ success: true, user: user.toProfile() });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ success: false, error: "Server error" });
@@ -59,34 +54,31 @@ router.post("/login", authLimiter, async (req, res) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(401).json({ success: false, error: "Invalid email or password" });
-    }
-
-    const match = await user.comparePassword(password);
-    if (!match) {
+    if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ success: false, error: "Invalid email or password" });
     }
 
     const token = signToken(user._id);
 
-    res.json({
-      success: true,
-      token,
-      user: user.toProfile(),
-    });
+    res
+      .cookie("ww_token", token, cookieOptions(NINETY_DAYS_MS))
+      .json({ success: true, user: user.toProfile() });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, error: "Server error" });
   }
 });
 
-// GET /auth/me — validate token and return fresh user profile
+// POST /auth/logout — clears the httpOnly cookie
+router.post("/logout", (req, res) => {
+  res
+    .clearCookie("ww_token", cookieOptions(0))
+    .json({ success: true });
+});
+
+// GET /auth/me — validate session and return fresh profile
 router.get("/me", authenticate, async (req, res) => {
-  res.json({
-    success: true,
-    user: req.user.toProfile(),
-  });
+  res.json({ success: true, user: req.user.toProfile() });
 });
 
 // POST /auth/reset-password
@@ -102,12 +94,9 @@ router.post("/reset-password", authLimiter, async (req, res) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      // Don't reveal whether email exists — return success either way
-      return res.json({ success: true });
-    }
+    if (!user) return res.json({ success: true }); // don't reveal if email exists
 
-    user.passwordHash = newPassword; // pre-save hook re-hashes
+    user.passwordHash = newPassword;
     await user.save();
 
     res.json({ success: true });

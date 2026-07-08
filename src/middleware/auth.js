@@ -1,14 +1,29 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-async function authenticate(req, res, next) {
-  const authHeader = req.headers.authorization;
+const isProd = process.env.NODE_ENV === "production";
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+function cookieOptions(maxAge) {
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    maxAge,
+    path: "/",
+  };
+}
+
+async function authenticate(req, res, next) {
+  // Read from httpOnly cookie first, fall back to Bearer header for backward compat
+  const token =
+    req.cookies?.ww_token ||
+    (req.headers.authorization?.startsWith("Bearer ")
+      ? req.headers.authorization.slice(7)
+      : null);
+
+  if (!token) {
     return res.status(401).json({ success: false, error: "No token provided" });
   }
-
-  const token = authHeader.slice(7);
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
@@ -30,8 +45,8 @@ async function authenticate(req, res, next) {
 
 function signToken(userId) {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "30d",
+    expiresIn: process.env.JWT_EXPIRES_IN || "90d",
   });
 }
 
-module.exports = { authenticate, signToken };
+module.exports = { authenticate, signToken, cookieOptions };
