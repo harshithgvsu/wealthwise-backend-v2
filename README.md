@@ -200,6 +200,21 @@ All routes except `/auth/*` and `/health` require `Authorization: Bearer <token>
 | POST | `/cards/bulk` | `{cards: [...]}` | Bulk upsert |
 | DELETE | `/cards/:id` | — | Delete by clientId |
 
+### AI
+
+Falls back to Ollama (if reachable) then Anthropic (if `ANTHROPIC_API_KEY` is set); if
+neither is available, `/ai/chat` and `/ai/parse-expense` return `{success: true, fallback: true}`
+and the frontend uses local canned logic instead — silently, by design. If AI replies look
+generic/rule-based instead of personalized, check `/ai/health` first before assuming the
+feature is broken.
+
+| Method | Path | Body | Description |
+|--------|------|------|-------------|
+| GET | `/ai/health` | — | Diagnostic: which provider (if any) is actually configured |
+| POST | `/ai/chat` | `{message, expenses, profile, history}` | Chat reply grounded in the user's numbers |
+| POST | `/ai/parse-expense` | `{text}` | Parse free text into `{amount, category, description, date}` |
+| POST | `/ai/trip-ideas` | `{expenses, profile}` | Seasonal trip budget narrative, grounded in spend-by-season vs. disposable income. Optional — the frontend's `SeasonalTripPlanner` shows a deterministic version of the same numbers with no AI needed; this only adds narrative on top. |
+
 ---
 
 ## Security Notes

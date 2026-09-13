@@ -4,6 +4,31 @@ const { authenticate } = require("../middleware/auth");
 
 router.use(authenticate);
 
+// GET /ai/health — diagnostic only, never leaks the key itself.
+// Hit this on the deployed backend (logged in) to check whether AI chat
+// is actually configured, instead of guessing from silent fallback: true
+// responses. See graphify audit finding #7.
+router.get("/health", async (_req, res) => {
+  const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
+  let ollamaReachable = false;
+  try {
+    const r = await fetch(`${ollamaHost}/v1/models`, { signal: AbortSignal.timeout(2000) });
+    ollamaReachable = r.ok;
+  } catch {
+    ollamaReachable = false;
+  }
+  const anthropicKeyConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
+  const activeProvider = ollamaReachable ? "ollama" : anthropicKeyConfigured ? "anthropic" : "none";
+  res.json({
+    activeProvider,
+    ollamaReachable,
+    anthropicKeyConfigured,
+    note: activeProvider === "none"
+      ? "Neither Ollama nor ANTHROPIC_API_KEY is reachable/set — /ai/chat and /ai/parse-expense will always return { fallback: true }."
+      : `AI calls will use ${activeProvider}.`,
+  });
+});
+
 // ── LLM client factory ────────────────────────────────────────────────────────
 // Priority: Ollama (local, free) → Anthropic (cloud, API key required)
 async function callLLM({ system, messages, maxTokens = 350 }) {
@@ -157,6 +182,70 @@ If you cannot find a dollar amount, return: {"error": "no amount"}`;
       return res.json({ success: true, fallback: true });
     }
     console.error("AI parse error:", err.message);
+    res.json({ success: true, fallback: true });
+  }
+});
+
+// POST /ai/trip-ideas — seasonal trip budget narrative.
+// Cross-platform: nothing here or on the frontend caller (SeasonalTripPlanner.tsx)
+// is gated to any device/OS. The frontend computes and shows a deterministic
+// seasonal breakdown itself and works fully without this endpoint; this only
+// adds an optional, more personalized narrative on top when a provider is
+// configured. No dedicated "Travel" expense category exists yet, so this
+// reasons from total monthly spend vs. disposable income, same as the
+// deterministic version — it doesn't pretend to know more than the data does.
+router.post("/trip-ideas", async (req, res) => {
+  const { expenses = [], profile = {} } = req.body;
+
+  const SEASON_OF = (m) => (m === 12 || m <= 2 ? "Winter" : m <= 5 ? "Spring" : m <= 8 ? "Summer" : "Fall");
+  const spendByMonth = {};
+  for (const e of expenses) {
+    const key = String(e.date || "").slice(0, 7);
+    if (!key) continue;
+    spendByMonth[key] = (spendByMonth[key] || 0) + (e.amount || 0);
+  }
+  const seasonTotals = { Winter: { sum: 0, n: 0 }, Spring: { sum: 0, n: 0 }, Summer: { sum: 0, n: 0 }, Fall: { sum: 0, n: 0 } };
+  for (const [key, total] of Object.entries(spendByMonth)) {
+    const month = Number(key.slice(5, 7));
+    if (!month) continue;
+    const s = SEASON_OF(month);
+    seasonTotals[s].sum += total;
+    seasonTotals[s].n += 1;
+  }
+  const seasonAverages = Object.entries(seasonTotals)
+    .filter(([, v]) => v.n > 0)
+    .map(([season, v]) => ({ season, avg: v.sum / v.n }));
+
+  if (seasonAverages.length < 2) {
+    return res.json({ success: true, fallback: true }); // not enough seasonal spread yet
+  }
+
+  const fixed = (profile.rentMortgage || 0) + (profile.carPayment || 0) +
+    (profile.insurancePremiums || 0) + (profile.subscriptions || 0) + (profile.otherFixedExpenses || 0);
+  const disposable = (profile.netMonthlyIncome || 0) - fixed;
+  const best = seasonAverages.reduce((a, b) => (disposable - b.avg > disposable - a.avg ? b : a));
+
+  const systemPrompt = `You are a travel budget assistant for WealthWise, a personal finance app. Be concise (under 120 words), practical, and grounded only in the numbers given — never invent prices, destinations-as-facts, or currency conversions you weren't given. Use markdown bold (**text**) for key numbers.
+
+User's seasonal spending history (average total monthly spend per season):
+${seasonAverages.map((s) => `- ${s.season}: $${s.avg.toFixed(0)}/mo`).join("\n")}
+
+Disposable income: ~$${disposable.toFixed(0)}/mo
+Historically lightest-spending season: ${best.season} (avg $${best.avg.toFixed(0)}/mo)
+Savings goal: ${profile.savingsGoalPercent || 20}% of income
+
+Suggest: (1) a realistic trip budget range grounded in the numbers above, (2) why ${best.season} (or another season if the data suggests otherwise) is a good window, (3) one lower-cost alternative if they want to save more first. Do not suggest specific destinations you have no basis for — talk in terms of trip scale (weekend/regional vs. week-long/international) instead.`;
+
+  try {
+    const result = await callLLM({ system: systemPrompt, messages: [{ role: "user", content: "Suggest a trip budget and timing based on my spending." }], maxTokens: 300 });
+    if (!result) return res.json({ success: true, fallback: true });
+    res.json({ success: true, reply: result.text, provider: result.provider, fallback: false });
+  } catch (err) {
+    const status = err.status || err.statusCode;
+    if (status === 429 || status === 529 || status === 402) {
+      return res.json({ success: true, fallback: true });
+    }
+    console.error("AI trip-ideas error:", err.message);
     res.json({ success: true, fallback: true });
   }
 });
