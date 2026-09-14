@@ -34,10 +34,15 @@ router.post("/signup", authLimiter, async (req, res) => {
     const user = await User.create({ email, name, passwordHash: password });
     const token = signToken(user._id);
 
+    // Cookie still set for same-site/custom-domain deploys; token is also
+    // returned in the body since *.onrender.com is on the public suffix list
+    // and browsers won't attach a cookie across two different Render
+    // services on that shared domain — the frontend falls back to sending
+    // this as a Bearer token instead. See authenticate() in middleware/auth.js.
     res
       .cookie("ww_token", token, cookieOptions(NINETY_DAYS_MS))
       .status(201)
-      .json({ success: true, user: user.toProfile() });
+      .json({ success: true, user: user.toProfile(), token });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ success: false, error: "Server error" });
@@ -62,7 +67,7 @@ router.post("/login", authLimiter, async (req, res) => {
 
     res
       .cookie("ww_token", token, cookieOptions(NINETY_DAYS_MS))
-      .json({ success: true, user: user.toProfile() });
+      .json({ success: true, user: user.toProfile(), token });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, error: "Server error" });
