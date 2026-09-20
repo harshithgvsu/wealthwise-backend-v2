@@ -8,6 +8,13 @@ router.use(authenticate);
 // Hit this on the deployed backend (logged in) to check whether AI chat
 // is actually configured, instead of guessing from silent fallback: true
 // responses. See graphify audit finding #7.
+//
+// anthropicKeyConfigured only checks the env var is non-empty — every
+// AI route swallows real failures (invalid key, no credits, bad model name,
+// network errors) into the same generic { fallback: true }, so that boolean
+// alone can't explain a live outage. anthropicReachable actually attempts a
+// trivial 1-token call and surfaces the real error (status + message, never
+// the key) when it fails.
 router.get("/health", async (_req, res) => {
   const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
   let ollamaReachable = false;
@@ -18,13 +25,34 @@ router.get("/health", async (_req, res) => {
     ollamaReachable = false;
   }
   const anthropicKeyConfigured = Boolean(process.env.ANTHROPIC_API_KEY);
-  const activeProvider = ollamaReachable ? "ollama" : anthropicKeyConfigured ? "anthropic" : "none";
+
+  let anthropicReachable = false;
+  let anthropicError = null;
+  if (anthropicKeyConfigured) {
+    try {
+      const Anthropic = require("@anthropic-ai/sdk");
+      const client = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 8000 });
+      await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 5,
+        messages: [{ role: "user", content: "hi" }],
+      });
+      anthropicReachable = true;
+    } catch (err) {
+      anthropicReachable = false;
+      anthropicError = { status: err.status || err.statusCode || null, message: err.message || String(err) };
+    }
+  }
+
+  const activeProvider = ollamaReachable ? "ollama" : anthropicReachable ? "anthropic" : "none";
   res.json({
     activeProvider,
     ollamaReachable,
     anthropicKeyConfigured,
+    anthropicReachable,
+    anthropicError,
     note: activeProvider === "none"
-      ? "Neither Ollama nor ANTHROPIC_API_KEY is reachable/set — /ai/chat and /ai/parse-expense will always return { fallback: true }."
+      ? "Neither Ollama nor a working Anthropic call is available — every /ai/* route will return { fallback: true }. See anthropicError above for the real cause."
       : `AI calls will use ${activeProvider}.`,
   });
 });
